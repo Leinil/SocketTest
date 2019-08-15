@@ -1,0 +1,10 @@
+{
+ "name": "wx",
+ "description": "test ws",
+ "version": "0.0.1",
+ "private": true,
+ "dependencies": {
+  "express": "~4.16.1",
+  "socket.io": "^2.2.0"
+ }
+}
