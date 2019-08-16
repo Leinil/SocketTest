@@ -11,7 +11,10 @@ SYSTEM='系统';
 //用户随机颜色
 let userColorArr = ['#00a1f4', '#0cc', '#795548', '#e91e63', '#00bcd4', '#009688', '#4caf50', '#8bc34a', '#ffc107', '#607d8b', '#ff9800', '#ff5722'];
 let userArr={}//用来处理链接入系统的所有用户
-let history=[]//历史信息
+let history={
+    'life':[],
+    'study':[]
+}//历史信息
 
 
 //容易出错的就是变量存储的位置***全局与局部
@@ -33,7 +36,7 @@ let history=[]//历史信息
 io.on('connection',function(socket){
     let userName='';//局部变量，初始化的时候为空设置成为用户的第一次输入
     let userColor='';//用户文字颜色，初始化的时候获取一个之后不变
-
+    let room='life';//默认房间号是生活区
 
     socket.emit('storeId',socket.id);
     socket.on('message',function(msg){
@@ -59,24 +62,26 @@ io.on('connection',function(socket){
                     })
                 }
                 //私聊的历史消息记录（保存了私聊信息记录）
-                history.push({
+                history[room].push({
                     secret:true,//此消息为私聊信息
-                    sender:socket.id,//消息发送者
-                    accepter:meeter,//消息接收者
-                    color:userColor,
+                    senderId:socket.id,//消息发送者
+                    senderName:userName,//消息发送者名字
+                    accepterName:meeter,//消息接收者
+                    color:userColor,//颜色暂时不管，后期加入了@房间区分的时候就可以完成
                     content:msg,
                     createAt: `${new Date().getHours()}:${new Date().getMinutes()}:${new Date().getSeconds()}`
                 })
             }
             else{
-                io.emit('message',{
+                //房间中的所有用户
+                io.sockets.in(room).emit('message',{
                     user:userName,
                     color:userColor,
                     content:msg,
                     id: socket.id,
                     createAt: `${new Date().getHours()}:${new Date().getMinutes()}:${new Date().getSeconds()}`
                 })
-                history.push({
+                history[room].push({
                     secret:false,
                     user:userName,
                     color:userColor,
@@ -90,20 +95,49 @@ io.on('connection',function(socket){
             userName=msg;
             userColor=shuffle(userColorArr)[0];
             userArr[userName]=socket;//载入新进用户
-            socket.broadcast.emit('message',{
+            socket.broadcast.to(room).emit('message', {
                 user:SYSTEM,
                 color:'red',
-                content:`${userName}加入了聊天`,
+                content:`用户${userName}在加入了${room==='life'?'生活区':'学习区'},快去找他聊天吧`,
                 createAt: `${new Date().getHours()}:${new Date().getMinutes()}:${new Date().getSeconds()}`
-            })
+            });//给当前房间中的其他用户发送提示消息
+            // socket.broadcast.emit('message',{
+            //     user:SYSTEM,
+            //     color:'red',
+            //     content:`用户${userName}在加入了${room==='life'?'生活区':'学习区'},快去找他聊天吧`,
+            //     createAt: `${new Date().getHours()}:${new Date().getMinutes()}:${new Date().getSeconds()}`
+            // })
         }
     })
 
-    socket.on('getHistory',function(){
-        if(history.length){
-            let newHistory=history.slice(history.length-20);
+    socket.on('getHistory',function(roomName){
+        if(history[roomName].length){
+            let newHistory=history[roomName].slice(history.length-20);
             socket.emit('history',newHistory);
         }
+    })
+
+    socket.on('join',function(roomName){
+        room=roomName;//切换房间
+        socket.join(roomName);
+        socket.send({
+            user:SYSTEM,
+            color:'red',
+            userNamehighLight:true,
+            content:`你已成功加入${roomName==='life'?`生活区`:'学习区'}，快和小伙伴一起聊天吧`,
+            createAt: `${new Date().getHours()}:${new Date().getMinutes()}:${new Date().getSeconds()}`
+        })
+    })
+    socket.on('leave',function(roomName){
+        room=roomName;//切换房间
+        socket.leave(roomName);
+        socket.send({
+            user:SYSTEM,
+            color:'red',
+            userNamehighLight:true,
+            content:`你已退出${roomName==='life'?`生活区`:'学习区'}，期待下次见面`,
+            createAt: `${new Date().getHours()}:${new Date().getMinutes()}:${new Date().getSeconds()}`
+        })
     })
 })
 
